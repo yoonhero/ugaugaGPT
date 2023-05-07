@@ -1,10 +1,12 @@
-import torch
+# import torch
 from transformers import ElectraTokenizer
 from fastapi import FastAPI
 from dataclasses import dataclass
 from pydantic import BaseModel
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
+import onnxruntime
+import numpy as np
 
 from gpt import GPT
 from database import db
@@ -23,27 +25,62 @@ CONFIG = GPTConfig(block_size=32, n_embd=128, n_heads=8, n_layer=5, vocab_size=3
 
 tokenizer = ElectraTokenizer.from_pretrained("monologg/koelectra-base-v3-discriminator")
 
-model_state_dict = torch.load("./checkpoints/epoch-99.pt")
-unwanted_prefix = '_orig_mod.'
-for k,v in list(model_state_dict.items()):
-    if k.startswith(unwanted_prefix):
-        model_state_dict[k[len(unwanted_prefix):]] = model_state_dict.pop(k)
+# model_state_dict = torch.load("./checkpoint/epoch-99.pt")
+# unwanted_prefix = '_orig_mod.'
+# for k,v in list(model_state_dict.items()):
+#     if k.startswith(unwanted_prefix):
+#         model_state_dict[k[len(unwanted_prefix):]] = model_state_dict.pop(k)
 
-model = GPT(CONFIG)
+# model = GPT(CONFIG)
 
-model.load_state_dict(model_state_dict)
-model.eval()
+# model.load_state_dict(model_state_dict)
+# model.eval()
 
-@torch.no_grad()
-def sampling(prompt):
+# @torch.no_grad()
+# def sampling(prompt):
+#     tokens = tokenizer.tokenize(prompt)
+#     ids = tokenizer.convert_tokens_to_ids(tokens)
+
+#     context = torch.tensor(ids, dtype=torch.long, device="cpu")
+#     context = context.unsqueeze(0)
+
+#     result = model.generate(context, max_new_tokens=10)
+#     decoded_result = tokenizer.decode(result.tolist()[0])   
+#     decoded_result = decoded_result[len(prompt):].replace("[SEP] ", "").replace("[CLS] ", "")
+#     return decoded_result
+
+session = onnxruntime.InferenceSession("./checkpoint/model.onnx")
+
+def generate(prompt):
     tokens = tokenizer.tokenize(prompt)
     ids = tokenizer.convert_tokens_to_ids(tokens)
+    idx = np.array(ids, dtype=np.int64)
+    idx = np.reshape(idx, (1, -1))
+    max_new_tokens = 10
 
-    context = torch.tensor(ids, dtype=torch.long, device="cpu")
-    context = context.unsqueeze(0)
+    for _ in range(max_new_tokens):
+        idx_cond = idx[:, -32:]
+        idx_cond = np.pad(idx_cond[0], (32-idx_cond.shape[1], 0), constant_values=0)
+        idx_cond = np.reshape(idx_cond, (1, -1))
 
-    result = model.generate(context, max_new_tokens=10)
-    decoded_result = tokenizer.decode(result.tolist()[0])   
+        output = session.run(None, {"modelInput": idx_cond})
+        print(output)
+        logits = output[0][-1, :] # becomes ( C)
+
+        y = np.exp(logits - np.max(logits))
+        probs = y / np.sum(np.exp(logits))
+        probs = probs[-1]
+        print(probs)
+        idx_next = np.random.multinomial(100, probs, size=1) # (B, 1)
+        idx_next = np.argmax(idx_next, axis=-1)
+        idx_next = np.reshape(idx_next, (1, -1))
+        
+        if idx_next == 0:
+            return idx
+        
+        idx = np.concatenate((idx, idx_next), axis=1)
+
+    decoded_result = tokenizer.decode(idx.tolist()[0])   
     decoded_result = decoded_result[len(prompt):].replace("[SEP] ", "").replace("[CLS] ", "")
     return decoded_result
 
