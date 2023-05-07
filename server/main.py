@@ -2,9 +2,7 @@ import torch
 from transformers import ElectraTokenizer
 from fastapi import FastAPI
 from dataclasses import dataclass
-from typing import Union
 from pydantic import BaseModel
-from fastapi.responses import JSONResponse
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 
