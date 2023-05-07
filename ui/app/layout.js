@@ -16,12 +16,6 @@ export const metadata = {
 export default function RootLayout({ children }) {
     return (
         <html lang="ko">
-            <Head>
-                <meta
-                    name="naver-site-verification"
-                    content="526dea18e9d6a5d3d8b9c4988fcfa3567fdd64e3"
-                />
-            </Head>
             <body className={notoSansKr.className}>{children}</body>
 
             <Script
@@ -35,14 +29,12 @@ export default function RootLayout({ children }) {
                 id="naver"
                 dangerouslySetInnerHTML={{
                     __html: `
-                            <script type="text/javascript" src="//wcs.naver.net/wcslog.js"></script>
-                            <script type="text/javascript">
+                            
                             if(!wcs_add) var wcs_add = {};
                             wcs_add["wa"] = "1b075fcf999f240";
                             if(window.wcs) {
                             wcs_do();
-                            }
-                            </script>`,
+                            }`,
                 }}
             />
         </html>
