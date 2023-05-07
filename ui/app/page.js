@@ -37,19 +37,19 @@ export default function Home() {
     };
 
     const Api = async (message) => {
-        try {
-            const res = await fetch(
-                "/api?prompt=" + encodeURIComponent(message)
-            );
-            if (res.status !== 200) {
-                console.error("Error Generating text with Ai");
-            } else {
-                const jsoned = await res.json();
-                console.log(jsoned);
-            }
-        } catch (error) {
-            console.log(error);
-        }
+        // try {
+        //     const res = await fetch(
+        //         "/api?prompt=" + encodeURIComponent(message)
+        //     );
+        //     if (res.status !== 200) {
+        //         console.error("Error Generating text with Ai");
+        //     } else {
+        //         const jsoned = await res.json();
+        //         console.log(jsoned);
+        //     }
+        // } catch (error) {
+        //     console.log(error);
+        // }
 
         const chat = {
             mode: "computer",

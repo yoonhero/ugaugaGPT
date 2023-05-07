@@ -1,89 +1,62 @@
-from typing import Union
-
+import torch
+from transformers import ElectraTokenizer
 from fastapi import FastAPI
+from dataclasses import dataclass
+from typing import Union
+from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+from datetime import datetime
+
+from gpt.model import GPT
 
 app = FastAPI()
 
-# import tiktoken
-import torch
-import argparse
-from transformers import AutoTokenizer
-
-import utils as utils
-import nanoChatGPT.config as CONFIG
-from nanoChatGPT.tokenizer import Tokenizer
-
-# KoGPT Tokenizer
-enc = AutoTokenizer.from_pretrained(
-  'kakaobrain/kogpt', revision='KoGPT6B-ryan1.5b-float16',
-  bos_token='[BOS]', eos_token='[EOS]', unk_token='[UNK]', pad_token='[PAD]', mask_token='[MASK]'
-)
-# enc = Tokenizer("./tokenizer/tokenizer.model")
-encode = lambda x: enc.encode(x, bos=True)
-decode = lambda x: enc.decode(x)
-
-def main(args):
-    model_path = args.path
-    max_tokens = args.max_tokens
-    start_tokens = args.start
+@dataclass 
+class GPTConfig: 
+    block_size:int 
+    n_embd: int
+    n_heads: int
+    n_layer: int
+    vocab_size: int
+    dropout: float = 0.1
     
-    config = utils.getModelConfig(args.model_size)
-    model, _, _ = utils.load_model(model_path, config, best=False)
-    model.eval()
-
-    if start_tokens == "":
-        start_tokens = input(">> ")
-    result = encode(start_tokens)
-    
-    @torch.no_grad()
-    def generate(context):
-        # generate from the model
-        context = torch.tensor(context, dtype=torch.long, device=CONFIG.device)
-        # unsqueeze for batched calculation
-        context = context.unsqueeze(0)
-
-        result = model.generate(context, max_new_tokens=max_tokens)
-        decoded_result = decode(result[0])   
-        return decoded_result
-
-    result = generate(result)
-
-    print(f"\n>> {result}\n")
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Inference My Custom GPT 🚀!!!')
-
-    parser.add_argument("--max_tokens", type=int, default=1000)
-    parser.add_argument("--path", type=str, default=CONFIG.TRAINING_OUTPUT_DIR)
-    parser.add_argument("--start", type=str, default="")
-    parser.add_argument("--model_size", type=str, default="LLAMA")
-
-    args = parser.parse_args()
-
-    main(args)
- 
+CONFIG = GPTConfig(block_size=32, n_embd=128, n_heads=8, n_layer=1, vocab_size=35000)
 
 
-# Generate the sample.
-def sample(tokenizer: Tokenizer, model: torch.nn.Module) -> None:
-    decode = lambda x: tokenizer.decode(x)
-    start_tokens = "[BOS] 세상을 바꾸는 것은 누구일까?"
-    result = tokenizer.encode(start_tokens)
-    context = torch.tensor(result, device=CONFIG.device, dtype=torch.long)
+tokenizer = ElectraTokenizer.from_pretrained("monologg/koelectra-base-v3-discriminator")
+
+
+model_state_dict = torch.load("./gpt/tmp/checkpoints/epoch-50.pt")
+model = GPT(CONFIG)
+model.load_state_dict(model_state_dict)
+model.eval()
+
+@torch.no_grad
+def generate(prompt:str):
+    tokens = tokenizer.tokenize(prompt)
+    ids = tokenizer.convert_tokens_to_ids(tokens)
+
+    context = torch.tensor(ids, dtype=torch.long, device=CONFIG.device)
     context = context.unsqueeze(0)
-    result = model.generate(context, max_new_tokens=100)[0].tolist()
-    result = decode(result)
 
-    with open('result.txt', "w") as f:
-        logger.info(result)
-        f.writelines(result)
-        f.close()
+    result = model.generate(context, max_new_tokens=20)
+    decoded_result = tokenizer.decode(result.tolist()[0])   
+    return decoded_result
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
+class Model(BaseModel):
+    prompt: str
 
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+class Result(BaseModel):
+    result: str
+    timestamp: datetime
+
+
+@app.post("/generate")
+async def data받기(data : Model):
+    output = await generate(data.prompt)
+    result = Result(result=output, timestamp=datetime.now())
+    return JSONResponse(content=result)
+
+
+@app.get("")
