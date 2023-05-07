@@ -21,17 +21,20 @@ export default function RootLayout({ children }) {
                     name="naver-site-verification"
                     content="526dea18e9d6a5d3d8b9c4988fcfa3567fdd64e3"
                 />
-                <Script
-                    strategy="afterInteractive"
-                    type="text/javascript"
-                    src="//wcs.naver.net/wcslog.js"
-                    id="naver"
-                />
-                <Script
-                    strategy="afterInterative"
-                    id="naver"
-                    dangerouslySetInnerHTML={{
-                        __html: `
+            </Head>
+            <body className={notoSansKr.className}>{children}</body>
+
+            <Script
+                strategy="afterInteractive"
+                type="text/javascript"
+                src="//wcs.naver.net/wcslog.js"
+                id="naver"
+            />
+            <Script
+                strategy="afterInterative"
+                id="naver"
+                dangerouslySetInnerHTML={{
+                    __html: `
                             <script type="text/javascript" src="//wcs.naver.net/wcslog.js"></script>
                             <script type="text/javascript">
                             if(!wcs_add) var wcs_add = {};
@@ -40,10 +43,8 @@ export default function RootLayout({ children }) {
                             wcs_do();
                             }
                             </script>`,
-                    }}
-                />
-            </Head>
-            <body className={notoSansKr.className}>{children}</body>
+                }}
+            />
         </html>
     );
 }
