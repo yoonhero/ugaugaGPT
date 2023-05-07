@@ -77,23 +77,13 @@ export default function Home() {
 
     return (
         <>
-            <Head>
-                <meta
-                    name="naver-site-verification"
-                    content="526dea18e9d6a5d3d8b9c4988fcfa3567fdd64e3"
-                />
-                <meta
-                    name="google-site-verification"
-                    content="1KDe4Utph9TllN9u4Gzkgc3k_Xo7kWtruaYaqrIwsKM"
-                />
-            </Head>
             <Script
                 strategy="afterInteractive"
                 type="text/javascript"
                 src="//wcs.naver.net/wcslog.js"
                 id="naver"
             />
-            <Script strategy="afterInterative" id="naver">
+            <Script strategy="afterInterative" id="naver-analystic">
                 {`
                             
                             if(!wcs_add) var wcs_add = {};

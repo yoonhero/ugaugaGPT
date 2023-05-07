@@ -21,7 +21,7 @@ batch_size = 64
 max_epoch = 1000
 eval_interval = 10
 save_interval = 50
-learning_rate = 5e-5
+learning_rate = 5e-4
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Basic Configs
@@ -34,9 +34,9 @@ class GPTConfig:
     n_heads: int
     n_layer: int
     vocab_size: int
-    dropout: float = 0.1
+    dropout: float = 0.2
     
-CONFIG = GPTConfig(block_size=32, n_embd=128, n_heads=8, n_layer=2, vocab_size=35000)
+CONFIG = GPTConfig(block_size=32, n_embd=128, n_heads=8, n_layer=5, vocab_size=35000)
 
 tokenizer = ElectraTokenizer.from_pretrained("monologg/koelectra-base-v3-discriminator")
 
@@ -102,8 +102,8 @@ for iter in range(0, max_epoch):
 
         scaler.scale(loss).backward()
 
-        max_norm = 5
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+        # max_norm = 5
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
 
         writer.add_scalar("Loss/train", loss, iter)
 

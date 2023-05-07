@@ -11,6 +11,14 @@ const notoSansKr = Noto_Sans_KR({
 export const metadata = {
     title: "우가우가GPT",
     description: "고대인이랑 대화를?? 우가가우가",
+    verification: {
+        google: "1KDe4Utph9TllN9u4Gzkgc3k_Xo7kWtruaYaqrIwsKM",
+        other: {
+            "naver-site-verification": [
+                "526dea18e9d6a5d3d8b9c4988fcfa3567fdd64e3",
+            ],
+        },
+    },
 };
 
 export default function RootLayout({ children }) {
