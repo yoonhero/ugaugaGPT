@@ -24,7 +24,7 @@ export const metadata = {
         title: "우가우가GPT",
         description: "고대인이랑 대화를?? 우가가우가!!",
         creator: "@yoonhero",
-        images: ["https://nextjs.org/og.png"],
+        images: ["/icon.png"],
     },
     icons: {
         icon: "/icon.png",

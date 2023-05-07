@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Head from "next/head";
 import Script from "next/script";
+import { pageview } from "@/lib/ntag";
 
 export default function Home() {
     const [chats, setChat] = useState([]);
@@ -75,24 +76,18 @@ export default function Home() {
         }
     }, [chats]);
 
+    useEffect(() => {
+        pageview();
+    }, []);
+
     return (
         <>
             <Script
-                strategy="afterInteractive"
+                strategy="afterInterative"
                 type="text/javascript"
                 src="//wcs.naver.net/wcslog.js"
                 id="naver"
             />
-            <Script strategy="afterInterative" id="naver-analystic">
-                {`
-                            
-                            if(!wcs_add) var wcs_add = {};
-                            wcs_add["wa"] = "1b075fcf999f240";
-                            if(window.wcs) {
-                            wcs_do();
-                            }
-                `}
-            </Script>
             <main className="flex flex-row h-screen w-screen">
                 {/* Chat Archive */}
                 {/* <div className='flex'>
