@@ -87,7 +87,8 @@ class TotalResult(BaseModel):
 app = FastAPI()
 
 origins = [
-    "http://localhost:3000"
+    "http://localhost:3000",
+    "https://ugagpt.vercel.app"
 ]
 
 app.add_middleware(
