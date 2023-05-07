@@ -19,7 +19,7 @@ const MessageBox = ({ mode, message, gif }) => {
     useEffect(() => {
         const timeout = setTimeout(() => {
             setPayload(message.slice(0, payload.length + 1));
-        }, 200);
+        }, 100);
 
         return () => clearTimeout(timeout);
     }, [payload]);
@@ -29,7 +29,7 @@ const MessageBox = ({ mode, message, gif }) => {
             className={`flex flex-row bg-[${
                 mode == "user" ? "#CB997E" : "#B7B7A4"
             }] w-full px-[4rem] md:px-[10rem] py-[1.24rem] min-h-[104px] border-b-2 border-[#DDBEA9]`}>
-            <div className="mr-[2rem]">
+            <div className="mr-[2rem] min-w-[60px]">
                 <Image
                     src={mode == "computer" ? "/uga.png" : "/user.png"}
                     width={60}
@@ -40,7 +40,7 @@ const MessageBox = ({ mode, message, gif }) => {
                 {gif && <Image src={gif} width={100} height={100} />}
 
                 <span
-                    className={`text-md text-gray-800 ${
+                    className={`break-all text-md text-gray-800 ${
                         mode == "computer" &&
                         message != payload &&
                         "blinking-cursor"

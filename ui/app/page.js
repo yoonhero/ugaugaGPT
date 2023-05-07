@@ -2,7 +2,6 @@
 import { MessageBox } from "@/components/message";
 import Image from "next/image";
 import { set, useForm } from "react-hook-form";
-import ScrollToBottom, { useScrollToBottom } from "react-scroll-to-bottom";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Head from "next/head";
@@ -12,6 +11,7 @@ import { pageview } from "@/lib/ntag";
 export default function Home() {
     const [chats, setChat] = useState([]);
     const chatContainerRef = useRef(null);
+    const [totalChat, setTotal] = useState(0);
     // const scrollToBottom = useScrollToBottom();
 
     const {
@@ -40,28 +40,40 @@ export default function Home() {
     };
 
     const Api = async (message) => {
-        // try {
-        //     const res = await fetch(
-        //         "/api?prompt=" + encodeURIComponent(message)
-        //     );
-        //     if (res.status !== 200) {
-        //         console.error("Error Generating text with Ai");
-        //     } else {
-        //         const jsoned = await res.json();
-        //         console.log(jsoned);
-        //     }
-        // } catch (error) {
-        //     console.log(error);
-        // }
+        try {
+            const data = { prompt: message };
+            const res = await fetch(
+                `${process.env.NEXT_PUBLIC_API_LINK}/generate`,
+                {
+                    body: JSON.stringify(data),
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    method: "POST",
+                }
+            );
+            if (res.status !== 200) {
+                console.error("Error Generating text with Ai");
+            } else {
+                const jsoned = await res.json();
 
-        const chat = {
-            mode: "computer",
-            gif: "/start.gif",
-            message: "우가우가우가ㅣ우가",
-        };
+                const randomNum = Math.floor(Math.random() * 20);
+                const chat = {
+                    mode: "computer",
+                    gif:
+                        randomNum < 14
+                            ? `/meme/${randomNum + 1}.gif`
+                            : "/start.gif",
+                    message: jsoned.result,
+                };
 
-        setChat([...chats, chat]);
+                setChat([...chats, chat]);
+            }
+        } catch (error) {
+            console.log(error);
+        }
     };
+
     const scrollToBottom = () => {
         chatContainerRef.current.scrollTop =
             chatContainerRef.current.scrollHeight;
@@ -76,18 +88,48 @@ export default function Home() {
         }
     }, [chats]);
 
+    const TotalChat = async () => {
+        try {
+            const res = await fetch(
+                `${process.env.NEXT_PUBLIC_API_LINK}/total`,
+                {
+                    method: "GET",
+                }
+            );
+            if (res.status !== 200) {
+                console.error("???");
+            } else {
+                const jsoned = await res.json();
+
+                setTotal(jsoned.count);
+            }
+        } catch (error) {
+            console.log(error);
+        }
+    };
+
+    const visit = async () => {
+        try {
+            const res = await fetch(
+                `${process.env.NEXT_PUBLIC_API_LINK}/visit`,
+                {
+                    method: "GET",
+                }
+            );
+        } catch (error) {
+            console.log(error);
+        }
+    };
+
     useEffect(() => {
         pageview();
+
+        TotalChat();
+        visit();
     }, []);
 
     return (
         <>
-            <Script
-                strategy="afterInterative"
-                type="text/javascript"
-                src="//wcs.naver.net/wcslog.js"
-                id="naver"
-            />
             <main className="flex flex-row h-screen w-screen">
                 {/* Chat Archive */}
                 {/* <div className='flex'>
@@ -113,7 +155,7 @@ export default function Home() {
                         className={`${
                             chats.length != 0 && "hidden"
                         }  flex-1 flex flex-col items-center text-center flex-col w-full justify-center items-center `}>
-                        <div className="text-3xl text-[#6B705C] font-extrabold">
+                        <div className="text-4xl text-[#6B705C] font-extrabold">
                             UgaugaGPT
                         </div>
                         <div className="flex items-center mx-20 my-10">
@@ -126,14 +168,10 @@ export default function Home() {
 
                         <div className="max-w-[340px] py-1 px-5 rounded-md">
                             <span className="font-bold text-gray-800">
-                                가가우우우가우가우가우우가우우우
-                                가우가가우우우가우가우가우가우가
-                                가가우가우가우가우가우가가우우우
-                                가가우우우우우가우우가가가우우우
-                                가가우우우가가우가우우가우가우우 가우우우우우
+                                지금까지 우가인이 총 {totalChat} 대화를 했어요!
                             </span>
                         </div>
-                        <div className="mt-2 flex flex-row gap-2 animate-bounce text-gray-600 text-sm">
+                        <div className="mt-5 flex flex-row gap-2 animate-bounce text-gray-600 text-sm">
                             Copyright 2023 ©{" "}
                             <Link href="https://github.com/yoonhero">
                                 <p className="cursor-pointer font-bold text-md text-gray-800">
