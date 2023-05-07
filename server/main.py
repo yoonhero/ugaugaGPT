@@ -51,7 +51,7 @@ tokenizer = ElectraTokenizer.from_pretrained("monologg/koelectra-base-v3-discrim
 
 session = onnxruntime.InferenceSession("./checkpoint/model.onnx")
 
-def generate(prompt):
+def sampling(prompt):
     tokens = tokenizer.tokenize(prompt)
     ids = tokenizer.convert_tokens_to_ids(tokens)
     idx = np.array(ids, dtype=np.int64)
@@ -64,13 +64,13 @@ def generate(prompt):
         idx_cond = np.reshape(idx_cond, (1, -1))
 
         output = session.run(None, {"modelInput": idx_cond})
-        print(output)
+        # print(output)
         logits = output[0][-1, :] # becomes ( C)
 
         y = np.exp(logits - np.max(logits))
         probs = y / np.sum(np.exp(logits))
         probs = probs[-1]
-        print(probs)
+        # print(probs)
         idx_next = np.random.multinomial(100, probs, size=1) # (B, 1)
         idx_next = np.argmax(idx_next, axis=-1)
         idx_next = np.reshape(idx_next, (1, -1))
