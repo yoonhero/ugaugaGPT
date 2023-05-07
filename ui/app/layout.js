@@ -17,26 +17,6 @@ export default function RootLayout({ children }) {
     return (
         <html lang="ko">
             <body className={notoSansKr.className}>{children}</body>
-
-            <Script
-                strategy="afterInteractive"
-                type="text/javascript"
-                src="//wcs.naver.net/wcslog.js"
-                id="naver"
-            />
-            <Script
-                strategy="afterInterative"
-                id="naver"
-                dangerouslySetInnerHTML={{
-                    __html: `
-                            
-                            if(!wcs_add) var wcs_add = {};
-                            wcs_add["wa"] = "1b075fcf999f240";
-                            if(window.wcs) {
-                            wcs_do();
-                            }`,
-                }}
-            />
         </html>
     );
 }

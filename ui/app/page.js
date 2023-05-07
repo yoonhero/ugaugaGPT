@@ -6,6 +6,7 @@ import ScrollToBottom, { useScrollToBottom } from "react-scroll-to-bottom";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Head from "next/head";
+import Script from "next/script";
 
 export default function Home() {
     const [chats, setChat] = useState([]);
@@ -86,6 +87,21 @@ export default function Home() {
                     content="1KDe4Utph9TllN9u4Gzkgc3k_Xo7kWtruaYaqrIwsKM"
                 />
             </Head>
+            <Script
+                strategy="afterInteractive"
+                type="text/javascript"
+                src="//wcs.naver.net/wcslog.js"
+                id="naver"
+            />
+            <Script strategy="afterInterative" id="naver">
+                {`
+                            
+                            if(!wcs_add) var wcs_add = {};
+                            wcs_add["wa"] = "1b075fcf999f240";
+                            if(window.wcs) {
+                            wcs_do();
+                            }`}
+            </Script>
             <main className="flex flex-row h-screen w-screen">
                 {/* Chat Archive */}
                 {/* <div className='flex'>
