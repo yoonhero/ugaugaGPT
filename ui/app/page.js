@@ -90,7 +90,8 @@ export default function Home() {
                             wcs_add["wa"] = "1b075fcf999f240";
                             if(window.wcs) {
                             wcs_do();
-                            }`}
+                            }
+                `}
             </Script>
             <main className="flex flex-row h-screen w-screen">
                 {/* Chat Archive */}
