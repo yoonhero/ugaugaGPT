@@ -36,7 +36,7 @@ class GPTConfig:
     vocab_size: int
     dropout: float = 0.1
     
-CONFIG = GPTConfig(block_size=32, n_embd=128, n_heads=8, n_layer=1, vocab_size=35000)
+CONFIG = GPTConfig(block_size=32, n_embd=128, n_heads=8, n_layer=2, vocab_size=35000)
 
 tokenizer = ElectraTokenizer.from_pretrained("monologg/koelectra-base-v3-discriminator")
 

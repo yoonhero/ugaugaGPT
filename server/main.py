@@ -26,7 +26,7 @@ CONFIG = GPTConfig(block_size=32, n_embd=128, n_heads=8, n_layer=1, vocab_size=3
 tokenizer = ElectraTokenizer.from_pretrained("monologg/koelectra-base-v3-discriminator")
 
 
-model_state_dict = torch.load("./gpt/tmp/checkpoints/epoch-50.pt")
+model_state_dict = torch.load("./gpt/tmp/checkpoints/epoch-49.pt")
 model = GPT(CONFIG)
 model.load_state_dict(model_state_dict)
 model.eval()
@@ -53,10 +53,11 @@ class Result(BaseModel):
 
 
 @app.post("/generate")
-async def data받기(data : Model):
+async def data(data : Model):
     output = await generate(data.prompt)
     result = Result(result=output, timestamp=datetime.now())
     return JSONResponse(content=result)
 
 
-@app.get("")
+# @app.get("/analysis")
+# async def 
