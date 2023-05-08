@@ -33,16 +33,7 @@ class GPT(nn.Module):
         x = self.ln_f(x)
 
         logits = self.lm_head(x)
-
-        if targets is None:
-            loss = None
-        else:
-            B, T, C = logits.shape
-            logits = logits.view(B*T, C)
-            targets = targets.view(B*T)
-            loss = F.cross_entropy(logits, targets, ignore_index=-1)
-
-        return logits, loss
+        return logits 
 
     @torch.no_grad()
     def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
@@ -109,9 +100,8 @@ class CasualAttention(nn.Module):
     
         self.rope_cache = None
 
-        if self.dropout:
-            self.attn_dropout = nn.Dropout(self.dropout)
-            self.resid_drop = nn.Dropout(self.dropout)
+        self.attn_dropout = nn.Dropout(self.dropout)
+        self.resid_drop = nn.Dropout(self.dropout)
 
         self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                         .view(1, 1, config.block_size, config.block_size))
@@ -125,29 +115,14 @@ class CasualAttention(nn.Module):
         v = v.view(B, T, self.n_heads, self.head_size).transpose(1, 2)
         q = q.view(B, T, self.n_heads, self.head_size).transpose(1, 2)
 
-        if self.rope_cache is None:
-            # cache for future forward calls
-            self.rope_cache = build_rope_cache(
-                seq_len=self.block_size,
-                n_elem=self.n_embd // self.n_heads, 
-                dtype=x.dtype,
-                device=x.device,
-            )
-
-        q = apply_rope(q, self.rope_cache)
-        k = apply_rope(k, self.rope_cache)
-
-        try: 
-            y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=True)
-        except: 
-            att = (q @ k.transpose(-2, -1)) * (1.0/math.sqrt(k.size(-1))) # (B, N_HEADS, T, T)
-            att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf')) 
-            att = F.softmax(att, dim=-1)
-            att = self.attn_dropout(att) if self.dropout else att
-            y = att @ v # (B, nh, T, hs)
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf')) 
+        att = F.softmax(att, dim=-1)
+        att = self.attn_dropout(att)
+        y = att @ v # (B, nh, T, hs)
 
         y = y.transpose(1, 2).contiguous().view(B, T, C) # (B, T, C)
-        y = self.resid_drop(self.c_proj(y)) if self.dropout else self.c_proj(y)
+        y = self.resid_drop(self.c_proj(y)) 
 
         return y
 

@@ -168,7 +168,7 @@ export default function Home() {
 
                         <div className="max-w-[340px] py-1 px-5 rounded-md">
                             <span className="font-bold text-gray-800">
-                                지금까지 우가인이 총 {totalChat} 대화를 했어요!
+                                지금까지 우가인이 총 {totalChat} 대화를 나눴어요!
                             </span>
                         </div>
                         <div className="mt-5 flex flex-row gap-2 animate-bounce text-gray-600 text-sm">

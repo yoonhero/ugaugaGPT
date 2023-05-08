@@ -1,11 +1,11 @@
-# import torch
+import torch
 from transformers import ElectraTokenizer
 from fastapi import FastAPI
 from dataclasses import dataclass
 from pydantic import BaseModel
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
-import onnxruntime
+# import onnxruntime
 import numpy as np
 
 from gpt import GPT
@@ -22,67 +22,89 @@ class GPTConfig:
     
 CONFIG = GPTConfig(block_size=32, n_embd=128, n_heads=8, n_layer=5, vocab_size=35000)
 
-
 tokenizer = ElectraTokenizer.from_pretrained("monologg/koelectra-base-v3-discriminator")
 
-# model_state_dict = torch.load("./checkpoint/epoch-99.pt")
-# unwanted_prefix = '_orig_mod.'
-# for k,v in list(model_state_dict.items()):
-#     if k.startswith(unwanted_prefix):
-#         model_state_dict[k[len(unwanted_prefix):]] = model_state_dict.pop(k)
+model_state_dict = torch.load("./checkpoint/epoch-99.pt", map_location=torch.device('cpu'))
+unwanted_prefix = '_orig_mod.'
+for k,v in list(model_state_dict.items()):
+    if k.startswith(unwanted_prefix):
+        model_state_dict[k[len(unwanted_prefix):]] = model_state_dict.pop(k)
 
-# model = GPT(CONFIG)
+model = GPT(CONFIG)
 
-# model.load_state_dict(model_state_dict)
-# model.eval()
+model.load_state_dict(model_state_dict)
+model.eval()
 
-# @torch.no_grad()
-# def sampling(prompt):
-#     tokens = tokenizer.tokenize(prompt)
-#     ids = tokenizer.convert_tokens_to_ids(tokens)
+model = torch.jit.script(model)
 
-#     context = torch.tensor(ids, dtype=torch.long, device="cpu")
-#     context = context.unsqueeze(0)
-
-#     result = model.generate(context, max_new_tokens=10)
-#     decoded_result = tokenizer.decode(result.tolist()[0])   
-#     decoded_result = decoded_result[len(prompt):].replace("[SEP] ", "").replace("[CLS] ", "")
-#     return decoded_result
-
-session = onnxruntime.InferenceSession("./checkpoint/model.onnx")
-
+@torch.no_grad()
 def sampling(prompt):
     tokens = tokenizer.tokenize(prompt)
     ids = tokenizer.convert_tokens_to_ids(tokens)
-    idx = np.array(ids, dtype=np.int64)
-    idx = np.reshape(idx, (1, -1))
-    max_new_tokens = 10
 
-    for _ in range(max_new_tokens):
-        idx_cond = idx[:, -32:]
-        idx_cond = np.pad(idx_cond[0], (32-idx_cond.shape[1], 0), constant_values=0)
-        idx_cond = np.reshape(idx_cond, (1, -1))
+    context = torch.tensor(ids, dtype=torch.long, device="cpu")
+    context = context.unsqueeze(0)
 
-        output = session.run(None, {"modelInput": idx_cond})
-        # print(output)
-        logits = output[0][-1, :] # becomes ( C)
+    @torch.no_grad()
+    def generate(idx, max_new_tokens, temperature=1.0, top_k=None):
+        for _ in range(max_new_tokens):
+            idx_cond = idx[:, -32:]
 
-        y = np.exp(logits - np.max(logits))
-        probs = y / np.sum(np.exp(logits))
-        probs = probs[-1]
-        # print(probs)
-        idx_next = np.random.multinomial(100, probs, size=1) # (B, 1)
-        idx_next = np.argmax(idx_next, axis=-1)
-        idx_next = np.reshape(idx_next, (1, -1))
+            logits = model(idx_cond, None)
+            logits = logits[:, -1, :] / temperature # becomes (B, C)
+
+            if top_k is not None:
+                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                logits[logits < v[:, [-1]]] = -float('Inf')
+            probs = torch.nn.functional.softmax(logits, dim=-1)
+            idx_next = torch.multinomial(probs, num_samples=1) # (B, 1)
+            
+            if idx_next == 2:
+                return idx
         
-        if idx_next == 0:
-            return idx
-        
-        idx = np.concatenate((idx, idx_next), axis=1)
+            idx = torch.cat((idx, idx_next), dim=1) # (B, T+1)
+        return idx
 
-    decoded_result = tokenizer.decode(idx.tolist()[0])   
-    decoded_result = decoded_result[len(prompt):].replace("[SEP] ", "").replace("[CLS] ", "")
+    result = generate(context, max_new_tokens=30)
+    decoded_result = tokenizer.decode(result.tolist()[0])   
+    decoded_result = decoded_result[len(prompt):].replace("[SEP]", "").replace("[CLS]", "")
+
     return decoded_result
+
+# session = onnxruntime.InferenceSession("./checkpoint/model.onnx")
+
+# def sampling(prompt):
+#     tokens = tokenizer.tokenize(prompt)
+#     ids = tokenizer.convert_tokens_to_ids(tokens)
+#     idx = np.array(ids, dtype=np.int64)
+#     idx = np.reshape(idx, (1, -1))
+#     max_new_tokens = 10
+
+#     for _ in range(max_new_tokens):
+#         idx_cond = idx[:, -32:]
+#         idx_cond = np.pad(idx_cond[0], (32-idx_cond.shape[1], 0), constant_values=0)
+#         idx_cond = np.reshape(idx_cond, (1, -1))
+
+#         output = session.run(None, {"modelInput": idx_cond})
+#         # print(output)
+#         logits = output[0][-1, :] # becomes ( C)
+
+#         y = np.exp(logits - np.max(logits))
+#         probs = y / np.sum(np.exp(logits))
+#         probs = probs[-1]
+#         # print(probs)
+#         idx_next = np.random.multinomial(100, probs, size=1) # (B, 1)
+#         idx_next = np.argmax(idx_next, axis=-1)
+#         idx_next = np.reshape(idx_next, (1, -1))
+        
+#         if idx_next == 0:
+#             return idx
+        
+#         idx = np.concatenate((idx, idx_next), axis=1)
+
+#     decoded_result = tokenizer.decode(idx.tolist()[0])   
+#     decoded_result = decoded_result[len(prompt):].replace("[SEP] ", "").replace("[CLS] ", "")
+#     return decoded_result
 
 
 # 0: 우 1: 가
@@ -110,7 +132,6 @@ class Model(BaseModel):
 class Result(BaseModel):
     result: str
     timestamp: datetime
-
 
 class HomeResult(BaseModel):
     visit: int
@@ -157,8 +178,13 @@ def total_turn():
 @app.post("/generate")
 def generate(data : Model):
     output = sampling(data.prompt)
-    ugaed = text2uga(output)
-    result = Result(result=ugaed, timestamp=datetime.now())
+    splitted_output = output.split(" ")
+    if splitted_output[0] == " ":
+        splitted_output = splitted_output[1:]
+    ugaed = text2uga(" ".join(splitted_output[:2]))
+    re = ugaed + " " + " ".join(splitted_output[2:])
+    # print(re)
+    result = Result(result=re, timestamp=datetime.now())
         
     db["archive"].update_one({"uid":"645752fbf0b1ae1b123ee633"}, {"$inc": {"count": 1}})
 
