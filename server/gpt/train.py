@@ -17,12 +17,15 @@ from model import GPT
 
 
 # Hyper Parameters
-batch_size = 64
+batch_size = 32
+# gradient_accumulation = 8
 max_epoch = 1000
 eval_interval = 10
 save_interval = 50
 learning_rate = 5e-4
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# for mac pro
+# device = "mps"
 
 # Basic Configs
 TRAINING_OUTPUT_DIR="./tmp/checkpoints/" 
@@ -36,7 +39,7 @@ class GPTConfig:
     vocab_size: int
     dropout: float = 0.2
     
-CONFIG = GPTConfig(block_size=32, n_embd=128, n_heads=8, n_layer=5, vocab_size=35000)
+CONFIG = GPTConfig(block_size=32, n_embd=128, n_heads=8, n_layer=10, vocab_size=35000)
 
 tokenizer = ElectraTokenizer.from_pretrained("monologg/koelectra-base-v3-discriminator")
 

@@ -7,12 +7,34 @@ class GPT(nn.Module):
     def __init__(self, config) -> None:
         super().__init__()
         self.config = config
+        # each token directly reads off the logits for the next token from a lookup table
+        # self.token_embedding_table = nn.Embedding(self.vocab_size, self.n_embd)
+        # self.positional_embedding_table = nn.Embedding(self.block_size, self.n_embd)
+        # self.sa_heads = MultiHeadAttention(config)
+        # self.dropout = nn.Dropout(self.dropout)
+        # feed forward layer is needed for think about the self attention score 
+        # when we pass the self attention score straight forward to the last layer 
+        # it's hard to think about the meaning of the score
+        # self.blocks = nn.Sequential(*[Block(config) for _ in range(self.n_layer)])
+        # # self.ln_f = nn.LayerNorm(self.n_embd)
+        # self.ln_f = RMSNorm(self.n_embd)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+        # self.transformer = nn.ModuleDict(
+        #     dict(
+        #         wte=nn.Embedding(config.vocab_size, config.n_embd),
+        #         h=nn.Sequential(*[Block(config) for _ in range(config.n_layer)]),
+        #         ln_f=RMSNorm(config.n_embd),
+        #     )
+        # )
         self.wte = nn.Embedding(config.vocab_size, config.n_embd)
         self.blocks = nn.Sequential(*[Block(config) for _ in range(config.n_layer)])
         self.ln_f = RMSNorm(config.n_embd)
 
         self.apply(self._init_weights)
+        # apply special scaled init to the residual projections, per GPT-2 paper
+        # for pn, p in self.named_parameters():
+            # if pn.endswith('c_proj.weight'):
+                # torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
         print(f"Number of parameters: {human_format(self.get_num_params())}")
 
     def get_num_params(self):
@@ -28,12 +50,25 @@ class GPT(nn.Module):
 
     def forward(self, idx, targets=None):
         B, T = idx.shape
+        # idx and targets are both (B, T) tensor of integes
+        # C is the Channel which represents the embedding table output size
+        # when we pass the idx to the token embedding table 
+        # we get a embedidng tensor by the idx and get by one by one
         x = self.wte(idx)
         x = self.blocks(x)
         x = self.ln_f(x)
 
-        logits = self.lm_head(x)
-        return logits 
+        logits = self.lm_head(x) # (B, T, vocab_size)
+
+        if targets is None:
+            loss = None
+        else:
+            B, T, C = logits.shape
+            logits = logits.view(B*T, C)
+            targets = targets.view(B*T)
+            loss = F.cross_entropy(logits, targets, ignore_index=-1)
+
+        return logits, loss
 
     @torch.no_grad()
     def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
@@ -47,9 +82,12 @@ class GPT(nn.Module):
             if top_k is not None:
                 v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
                 logits[logits < v[:, [-1]]] = -float('Inf')
+            # apply softmax to get probabilities
             probs = F.softmax(logits, dim=-1)
+            # sample from the distribution
             idx_next = torch.multinomial(probs, num_samples=1) # (B, 1)
             
+            # after [BOS] token appear stop generating.
             if idx_next == 0:
                 return idx
             
@@ -62,6 +100,7 @@ class GPT(nn.Module):
 
 
 class Block(nn.Module):
+    """Transformer block: communication followd by computation"""
     def __init__(self, config):
         # n_embd: embedding dimension, n_heads: the number of the heads 
         super().__init__()
@@ -82,6 +121,25 @@ class Block(nn.Module):
         return x
 
 
+class MultiHeadAttention(nn.Module):
+    # Multiple heads of self-attention in parallel
+    def __init__(self, config) -> None:
+        super().__init__()
+        self.n_embd = config.n_embd
+        self.n_heads = config.n_heads
+        self.head_size = self.n_embd//self.n_heads
+        self.dropout = config.dropout
+        self.block_size = config.block_size
+        self.heads = nn.ModuleList([Head(config) for _ in range(self.n_heads)])
+        self.proj = nn.Linear(self.n_embd, self.n_embd)
+        self.dropout = nn.Dropout(self.dropout)
+    
+    def forward(self, x):
+        out = torch.cat([h(x) for h in self.heads], dim=-1)
+        out = self.dropout(self.proj(out))
+        return out
+    
+
 class CasualAttention(nn.Module):
     # Multiple heads of self-attention in parallel
     # for efficiency
@@ -100,8 +158,9 @@ class CasualAttention(nn.Module):
     
         self.rope_cache = None
 
-        self.attn_dropout = nn.Dropout(self.dropout)
-        self.resid_drop = nn.Dropout(self.dropout)
+        if self.dropout:
+            self.attn_dropout = nn.Dropout(self.dropout)
+            self.resid_drop = nn.Dropout(self.dropout)
 
         self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                         .view(1, 1, config.block_size, config.block_size))
@@ -115,14 +174,26 @@ class CasualAttention(nn.Module):
         v = v.view(B, T, self.n_heads, self.head_size).transpose(1, 2)
         q = q.view(B, T, self.n_heads, self.head_size).transpose(1, 2)
 
-        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        if self.rope_cache is None:
+            # cache for future forward calls
+            self.rope_cache = build_rope_cache(
+                seq_len=self.block_size,
+                n_elem=self.n_embd // self.n_heads, 
+                dtype=x.dtype,
+                device=x.device,
+            )
+
+        q = apply_rope(q, self.rope_cache)
+        k = apply_rope(k, self.rope_cache)
+
+        att = (q @ k.transpose(-2, -1)) * (1.0/math.sqrt(k.size(-1))) # (B, N_HEADS, T, T)
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf')) 
         att = F.softmax(att, dim=-1)
-        att = self.attn_dropout(att)
+        att = self.attn_dropout(att) if self.dropout else att
         y = att @ v # (B, nh, T, hs)
 
         y = y.transpose(1, 2).contiguous().view(B, T, C) # (B, T, C)
-        y = self.resid_drop(self.c_proj(y)) 
+        y = self.resid_drop(self.c_proj(y)) if self.dropout else self.c_proj(y)
 
         return y
 
@@ -169,6 +240,14 @@ class FeedForward(nn.Module):
 
         N = 256
         n_hidden = ((n_hidden - 1) // N) * N + N
+
+        # self.net = nn.Sequential(
+        #     nn.Linear(self.n_embd, 4*self.n_embd, bias=False),
+        #     nn.GELU(),
+        #     nn.Linear(4*self.n_embd, self.n_embd, bias=False),
+        #     nn.Dropout(self.dropout)
+        # )
+
         self.c_fc1 = nn.Linear(config.n_embd, n_hidden, bias=False)
         self.c_fc2 = nn.Linear(config.n_embd, n_hidden, bias=False)
         self.c_proj = nn.Linear(n_hidden, config.n_embd, bias=False)
